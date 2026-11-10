@@ -1,0 +1,34 @@
+{
+  "name": "aws",
+  "version": "0.1.0",
+  "description": "/aws login [profiles...]: aws sso login per profile, each opened in its own Chrome profile",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "profiles": {
+      "type": "string",
+      "multiple": true,
+      "title": "AWS profiles",
+      "description": "Profiles /aws login logs into when none are passed",
+      "default": []
+    },
+    "chromeProfiles": {
+      "type": "string",
+      "multiple": true,
+      "title": "Chrome profile per AWS profile",
+      "description": "Entries of the form <aws-profile>=<Chrome profile directory>, e.g. nsx=Profile 3",
+      "default": []
+    },
+    "defaultChromeProfile": {
+      "type": "string",
+      "title": "Default Chrome profile",
+      "description": "Chrome profile directory for AWS profiles without a mapping; empty for the browser's default",
+      "default": ""
+    },
+    "browserApp": {
+      "type": "string",
+      "title": "Browser app",
+      "description": "macOS app the SSO URL opens in",
+      "default": "Google Chrome"
+    }
+  }
+}

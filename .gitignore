@@ -1,0 +1,3 @@
+# Written by the Claude Code engine when it loads a plugin
+plugins/*/.claude-plugin/types/
+node_modules/

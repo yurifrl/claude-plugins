@@ -1,0 +1,6 @@
+{
+  "name": "respond",
+  "version": "0.1.0",
+  "description": "/respond [N]: load a past assistant message into the prompt to edit and reply",
+  "types": "./types/index.d.ts"
+}

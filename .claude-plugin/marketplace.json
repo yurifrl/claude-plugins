@@ -1,0 +1,22 @@
+{
+  "name": "yurifrl",
+  "owner": { "name": "Yuri" },
+  "metadata": { "description": "Yuri's Claude Code plugins (mods): ports of pi-yuri-extensions modules" },
+  "plugins": [
+    {
+      "name": "aws",
+      "source": "./plugins/aws",
+      "description": "/aws login [profiles...]: aws sso login per profile, each in its own Chrome profile"
+    },
+    {
+      "name": "session-id",
+      "source": "./plugins/session-id",
+      "description": "session_id tool: returns the current Claude Code session id"
+    },
+    {
+      "name": "respond",
+      "source": "./plugins/respond",
+      "description": "/respond [N]: load a past assistant message into the prompt to edit and reply"
+    }
+  ]
+}

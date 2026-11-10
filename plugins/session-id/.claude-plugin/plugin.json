@@ -1,0 +1,5 @@
+{
+  "name": "session-id",
+  "version": "0.1.0",
+  "description": "session_id tool: returns the current Claude Code session id"
+}
