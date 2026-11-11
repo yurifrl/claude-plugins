@@ -17,6 +17,11 @@
       "name": "respond",
       "source": "./plugins/respond",
       "description": "/respond [N]: load a past assistant message into the prompt to edit and reply"
+    },
+    {
+      "name": "save",
+      "source": "./plugins/save",
+      "description": "/save [name] [description=\"...\"]: register the current session with `cly as save`"
     }
   ]
 }

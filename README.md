@@ -9,6 +9,7 @@ Most are ports of modules from [pi-yuri-extensions](https://github.com/yurifrl/p
 | `aws` | `/aws login [profiles...]` runs `aws sso login --no-browser` per profile and opens each SSO URL in that profile's Chrome profile; progress shows above the prompt |
 | `session-id` | `session_id` tool (`mcp__session-id__session_id`) that returns the current session id |
 | `respond` | `/respond` picks a past assistant message and loads it into the prompt; `/respond N` loads the Nth latest directly |
+| `save` | `/save [name] [description="..."]` registers the current session via `cly as save` (provider `claude`); never starts a turn |
 
 ## Layout
 
@@ -29,7 +30,7 @@ In `~/.claude/settings.json`:
 "extraKnownMarketplaces": {
   "yurifrl": { "source": { "source": "directory", "path": "/Users/yuri/DotFiles/submodules/claude-plugins" } }
 },
-"enabledPlugins": { "aws@yurifrl": true, "session-id@yurifrl": true, "respond@yurifrl": true },
+"enabledPlugins": { "aws@yurifrl": true, "session-id@yurifrl": true, "respond@yurifrl": true, "save@yurifrl": true },
 "pluginConfigs": {
   "aws@yurifrl": { "options": { "profiles": ["nsx"], "chromeProfiles": ["nsx=Profile 3"] } }
 }

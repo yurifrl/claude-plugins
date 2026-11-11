@@ -1,0 +1,5 @@
+{
+  "name": "save",
+  "version": "0.1.0",
+  "description": "/save [name] [description=\"...\"]: register the current session with `cly as save`"
+}
