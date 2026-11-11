@@ -31,6 +31,30 @@ function basename(p: string): string {
   return p.replace(/\/+$/, '').split('/').pop() ?? p
 }
 
+// The session's title lives in its transcript (<config>/projects/<dir>/<id>.jsonl):
+// `/rename` appends {"type":"custom-title","customTitle"}, the auto title is
+// {"type":"ai-title","aiTitle"}. The latest custom title wins, then the latest ai title.
+const TITLE_SCRIPT =
+  'grep -h -E \'"type":"(custom|ai)-title"\' "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"/projects/*/"$1".jsonl 2>/dev/null'
+
+export function pickTitle(lines: string): string {
+  let custom = ''
+  let ai = ''
+  for (const line of lines.split('\n')) {
+    if (!line.trim()) continue
+    try {
+      const row: unknown = JSON.parse(line)
+      if (typeof row !== 'object' || row === null) continue
+      const r = row as { type?: unknown; customTitle?: unknown; aiTitle?: unknown }
+      if (r.type === 'custom-title' && typeof r.customTitle === 'string') custom = r.customTitle.trim()
+      if (r.type === 'ai-title' && typeof r.aiTitle === 'string') ai = r.aiTitle.trim()
+    } catch {
+      // a partial line: skip it
+    }
+  }
+  return custom || ai
+}
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({
@@ -45,7 +69,11 @@ export const register: Register = on => {
     const cwd = await $.session.cwd()
     const id = await $.session.id()
     const overrides = parseSaveArgs(e.args)
-    const name = overrides.name ?? slugify(basename(cwd))
+    let name = overrides.name
+    if (name === undefined) {
+      const { stdout: titles } = await $.process.run(['sh', '-c', TITLE_SCRIPT, 'sh', id])
+      name = pickTitle(titles) || slugify(basename(cwd))
+    }
     const description = overrides.description ?? `session in ${cwd}`
 
     const { exitCode, stdout, stderr } = await $.process.run([
