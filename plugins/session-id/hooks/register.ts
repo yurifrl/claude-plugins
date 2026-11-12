@@ -9,8 +9,17 @@ export const register: Register = on => {
       inputSchema: { type: 'object', properties: {} },
     })
 
+    await $.command.register({
+      name: 'session-id',
+      description: 'Show the current Claude Code session id',
+    })
+
     return next(e)
   })
+
+  on('command.run', { command: 'session-id' }, async $ => ({
+    text: await $.session.id(),
+  }))
 
   on('tool.call', { tool: 'mcp__session-id__session_id' }, async $ => ({
     result: await $.session.id(),
