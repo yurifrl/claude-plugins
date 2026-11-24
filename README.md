@@ -10,7 +10,7 @@ Most are ports of modules from [pi-yuri-extensions](https://github.com/yurifrl/p
 | `session-id` | `session_id` tool (`mcp__session-id__session_id`) that returns the current session id |
 | `respond` | `/respond` picks a past assistant message and loads it into the prompt; `/respond N` loads the Nth latest directly |
 | `save` | `/save [name] [description="..."]` registers the current session via `cly as save` (provider `claude`), named after its `/rename` or auto title by default; never starts a turn |
-| `omp-claude-agent` | `open` / `send` / `state` / `list` / `abort` / `close` tools (`mcp__omp-claude-agent__*`) that run the real omp TUI in a Tern pane through a bundled omp extension, and prompt Claude when an omp turn ends unattended; ships its own skill |
+| `omp-claude-agent` | Drive the real omp TUI: `open` it in a Tern pane or `attach` to a running one, `send` prompts, and get woken when its turns end (`mcp__omp-claude-agent__*`); `/omp-claude-agent install` makes every omp attachable. Also an omp extension; see its README |
 
 ## Layout
 
@@ -39,6 +39,8 @@ In `~/.claude/settings.json`:
 ```
 
 A directory marketplace is read in place: edit a plugin here, run `/reload-plugins`.
+
+`omp-claude-agent` has an omp half too; its declarative install is one symlink into `~/.omp/agent/extensions` (see `plugins/omp-claude-agent/README.md`). DotFiles carries it as `home/.omp/agent/extensions/omp-claude-agent`.
 
 Elsewhere: `/plugin install <name> --marketplace yurifrl/claude-plugins`.
 

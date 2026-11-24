@@ -26,7 +26,7 @@
     {
       "name": "omp-claude-agent",
       "source": "./plugins/omp-claude-agent",
-      "description": "open/send/state/list/abort/close tools for the real omp TUI in a Tern pane; wakes Claude when an omp turn ends"
+      "description": "Drive the real omp TUI: open it in a Tern pane or attach to a running one, send prompts, get woken when its turns end"
     }
   ]
 }
