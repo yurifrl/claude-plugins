@@ -37,7 +37,9 @@ const DRIVEN_PROMPT = `# Driven by Claude Code
 A Claude Code session is driving this omp session: it sends your prompts and reads your replies. The person may still type here too.
 
 - Report back in your reply: results, questions and decisions all go there, and Claude relays what the person needs to see.
-- Do not use Plannotator (the plannotator command or its skills) or any other channel to reach the person directly.`;
+- Do not use Plannotator (the plannotator command or its skills) or any other channel to reach the person directly.
+- Track the work in tk (the tasks skill), when the working directory has a tk workspace. When Claude hands you a task id, claim it (\`tk update <id> --claim\`), record progress with \`tk note\`, attach evidence with \`tk attach\`, and hand over with \`tk update <id> --status ready-to-review\` plus a \`tk comment\`. Work Claude hands you without an id gets a task first (\`tk q "<title>"\`). Name the task id in your reply.
+- tk's \`ask\`, \`say\` and \`annotate\` reach the person directly: do not use them; put questions in your reply.`;
 
 // Read once, then dropped so omp started from inside this one (a bash tool
 // running `omp -p`) does not take this process's socket.

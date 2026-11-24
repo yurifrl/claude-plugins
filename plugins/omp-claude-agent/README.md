@@ -10,7 +10,7 @@ One folder, both halves:
 | `skills/omp-sessions/` | Claude Code | When and how to use the tools |
 | `package.json` (`omp.extensions`), `extension/` | omp | Extension that serves each omp process over HTTP on `~/.cache/omp-claude-agent/<name>/sock`; one copy runs per process even when loaded twice |
 
-While a Claude session drives an omp session, the extension appends a "Driven by Claude Code" section to omp's system prompt each turn: omp reports in its replies and leaves Plannotator (the user's channel, which Claude keeps) alone. omp used by hand never gets it. Driving starts with `open`, `attach` or `send`, and ends with `detach`, `close`, another Claude session taking over, or the Claude session ending.
+While a Claude session drives an omp session, the extension appends a "Driven by Claude Code" section to omp's system prompt each turn: omp reports in its replies, leaves Plannotator (the user's channel, which Claude keeps) alone, and tracks its work in tk where the directory has a tk workspace (without tk's `ask`/`say`/`annotate`, which reach the user). omp used by hand never gets it. Driving starts with `open`, `attach` or `send`, and ends with `detach`, `close`, another Claude session taking over, or the Claude session ending.
 
 Requires `tern` and `omp` on `PATH`.
 
