@@ -1,0 +1,5 @@
+{
+  "name": "omp-claude-agent",
+  "version": "0.1.0",
+  "description": "Open the real omp TUI in a Tern pane, prompt it with native tools, and get woken when it finishes a turn."
+}

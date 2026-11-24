@@ -10,6 +10,7 @@ Most are ports of modules from [pi-yuri-extensions](https://github.com/yurifrl/p
 | `session-id` | `session_id` tool (`mcp__session-id__session_id`) that returns the current session id |
 | `respond` | `/respond` picks a past assistant message and loads it into the prompt; `/respond N` loads the Nth latest directly |
 | `save` | `/save [name] [description="..."]` registers the current session via `cly as save` (provider `claude`), named after its `/rename` or auto title by default; never starts a turn |
+| `omp-claude-agent` | `open` / `send` / `state` / `list` / `abort` / `close` tools (`mcp__omp-claude-agent__*`) that run the real omp TUI in a Tern pane through a bundled omp extension, and prompt Claude when an omp turn ends unattended; ships its own skill |
 
 ## Layout
 
@@ -20,6 +21,7 @@ plugins/<name>/
   hooks/hooks.json                # { "modules": ["./register.ts(x)"] }
   hooks/register.ts(x)            # export const register: Register = (on, options) => { ... }
   types/index.d.ts                # $.state contract, when the plugin keeps state
+  skills/<name>/SKILL.md          # a skill the plugin ships, when it has one
 ```
 
 ## Install (declarative, from dotfiles)
@@ -30,7 +32,7 @@ In `~/.claude/settings.json`:
 "extraKnownMarketplaces": {
   "yurifrl": { "source": { "source": "directory", "path": "/Users/yuri/DotFiles/submodules/claude-plugins" } }
 },
-"enabledPlugins": { "aws@yurifrl": true, "session-id@yurifrl": true, "respond@yurifrl": true, "save@yurifrl": true },
+"enabledPlugins": { "aws@yurifrl": true, "session-id@yurifrl": true, "respond@yurifrl": true, "save@yurifrl": true, "omp-claude-agent@yurifrl": true },
 "pluginConfigs": {
   "aws@yurifrl": { "options": { "profiles": ["nsx"], "chromeProfiles": ["nsx=Profile 3"] } }
 }

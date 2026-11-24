@@ -22,6 +22,11 @@
       "name": "save",
       "source": "./plugins/save",
       "description": "/save [name] [description=\"...\"]: register the current session with `cly as save`"
+    },
+    {
+      "name": "omp-claude-agent",
+      "source": "./plugins/omp-claude-agent",
+      "description": "open/send/state/list/abort/close tools for the real omp TUI in a Tern pane; wakes Claude when an omp turn ends"
     }
   ]
 }
