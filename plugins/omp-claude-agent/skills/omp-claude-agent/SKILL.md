@@ -20,6 +20,7 @@ Use the plugin's tools, never a hand-launched `omp` or `tern send`:
 
 ## How it behaves
 
+- **Placement.** `open` splits the pane Claude runs in, omp on the right. Leave `place` unset unless the user asks for something else: `down` for a split below, `tab` for a new tab.
 - The pane is the normal interactive omp. The user can type in it, and tool approvals and `ask` questions appear there for the user to answer. Do not answer them for the user.
 - **Wake-ups.** Once a session is open, a prompt arrives here by itself whenever a turn in it finishes and no `send` is waiting for it: a turn the user started in the pane, a `send` with `wait: false`, or a `send` whose wait timed out. Never poll, sleep or re-send to check on a turn.
 - `send` waits 300 s by default. A timeout is not a failure; the reply comes later as a wake-up.

@@ -154,10 +154,12 @@ async function open($: any, e: any) {
     `#!/bin/sh\nexport OMP_CLAUDE_AGENT_DIR=${shq(s.dir)}\n${command.map((word, index) => (index === 0 ? word : shq(word))).join(' ')}\n`,
   )
   const launch = ['sh', `${s.dir}/launch.sh`]
-  const pane = await $.env.get('TERN_PANE')
+  // A split beside Claude's own pane unless the caller asks for a tab; with no
+  // pane of its own to name, beside the focused block.
+  const pane = (await $.env.get('TERN_PANE')) ?? '@focused'
   const place: string = e.place ?? 'right'
   const argv =
-    place === 'tab' || !pane
+    place === 'tab'
       ? ['tern', 'new', 'tab', '--cwd', cwd, '--json', '--', ...launch]
       : ['tern', 'split', pane, place, '--cwd', cwd, '--json', '--', ...launch]
   const started = await $.process.run(argv)
@@ -243,7 +245,7 @@ const tools: Record<string, { description: string; inputSchema: Record<string, u
       properties: {
         name: { type: 'string', description: 'Session name (letters, digits, . _ -). Default: omp-<digits>.' },
         cwd: { type: 'string', description: "Directory omp works in. Default: this session's." },
-        place: { type: 'string', enum: ['right', 'down', 'tab'], description: 'Split beside this pane, or a new tab. Default right.' },
+        place: { type: 'string', enum: ['right', 'down', 'tab'], description: 'Where the pane goes. Default "right": a split beside this pane. Pass "down" or "tab" only when the user asks for it.' },
         omp_args: { type: 'array', items: { type: 'string' }, description: 'Extra omp flags, e.g. ["--model","opus"].' },
       },
     },
