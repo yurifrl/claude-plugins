@@ -1,5 +1,5 @@
 {
   "name": "omp-claude-agent",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Drive the real omp TUI from Claude: open it in a Tern pane or attach to a running one, prompt it, and get woken when its turns end."
 }

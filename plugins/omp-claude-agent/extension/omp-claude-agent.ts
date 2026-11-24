@@ -17,6 +17,9 @@
 //
 // Only interactive (TUI) omp serves: a child `omp -p` an agent runs stays out.
 //
+// While a Claude session drives this omp (the plugin keeps <dir>/owner while it
+// does), each turn's system prompt gets DRIVEN_PROMPT appended.
+//
 // @ts-nocheck
 
 import fs from "node:fs";
@@ -28,6 +31,13 @@ const SETTLE_DELAY_MS = 400;
 const MAX_WAIT_MS = 25_000;
 const STATE_ROOT = path.join(os.homedir(), ".cache", "omp-claude-agent");
 const MODULE = import.meta.url;
+
+const DRIVEN_PROMPT = `# Driven by Claude Code
+
+A Claude Code session is driving this omp session: it sends your prompts and reads your replies. The person may still type here too.
+
+- Report back in your reply: results, questions and decisions all go there, and Claude relays what the person needs to see.
+- Do not use Plannotator (the plannotator command or its skills) or any other channel to reach the person directly.`;
 
 // Read once, then dropped so omp started from inside this one (a bash tool
 // running `omp -p`) does not take this process's socket.
@@ -231,6 +241,13 @@ export default function ompClaudeAgent(pi: any) {
 		shared.ctx = context;
 		shared.waitingOnUser = false;
 		startServer();
+	});
+
+	pi.on("before_agent_start", (event: any, context: any) => {
+		if (!isMain(context) || !fs.existsSync(path.join(shared.dir, "owner"))) return;
+		const current = event?.systemPrompt;
+		const sections = Array.isArray(current) ? current : typeof current === "string" ? [current] : [];
+		return { systemPrompt: [...sections, DRIVEN_PROMPT] };
 	});
 
 	pi.on("agent_start", (_event: any, context: any) => {

@@ -72,6 +72,13 @@ async function claim($: any, s: Session) {
   await $.fs.write(`${s.dir}/owner`, await $.session.id())
 }
 
+/** Stops driving: the omp drops the driven prompt and wakes nobody. */
+async function release($: any, s: Session) {
+  if ((await owner($, s)) === (await $.session.id())) {
+    await $.process.run(['rm', '-f', `${s.dir}/owner`])
+  }
+}
+
 async function owner($: any, s: Session): Promise<string | undefined> {
   try {
     return (await $.fs.read(`${s.dir}/owner`)).trim()
@@ -299,6 +306,13 @@ async function close($: any, e: any) {
   return `closed omp session "${s.name}"`
 }
 
+async function detach($: any, e: any) {
+  const s = await resolve($, e.name)
+  if ((await owner($, s)) !== (await $.session.id())) return `omp session "${s.name}" is not driven by this Claude session`
+  await release($, s)
+  return `Detached from omp session "${s.name}": it runs on as a plain omp, without the driven prompt or wake-ups.`
+}
+
 async function attach($: any, e: any) {
   const sessions = await live($)
   let target = e.name ? sessions.find(entry => entry.session.name === e.name) : undefined
@@ -360,6 +374,11 @@ const tools: Record<string, { description: string; inputSchema: Record<string, u
       "Attach to an omp session that is already running, opened by the user or another Claude session, so you can send to it and are prompted when its turns finish (taking those wake-ups over from any other Claude session). Without a name, attaches to the only one nobody owns. Use when the user asks to take over, connect to or use an existing omp session.",
     inputSchema: { type: 'object', properties: { name: { type: 'string', description: 'Session name from the list tool.' } } },
   },
+  detach: {
+    description:
+      'Stop driving an omp session without closing it: omp drops the "driven by Claude" system prompt (and may use Plannotator again) and this session gets no more wake-ups from it. Use when the user wants the omp back for themselves.',
+    inputSchema: { type: 'object', properties: { name: NAME } },
+  },
   state: {
     description: 'State of an omp session: session id and file, model, cwd, whether it is idle or waiting on the user, and its last reply.',
     inputSchema: { type: 'object', properties: { name: NAME } },
@@ -405,6 +424,7 @@ async function run($: any, name: string, e: any): Promise<unknown> {
     case 'open': return open($, e)
     case 'send': return send($, e)
     case 'attach': return attach($, e)
+    case 'detach': return detach($, e)
     case 'state': return state($, e)
     case 'list': return list($)
     case 'abort': return abort($, e)
@@ -488,11 +508,22 @@ export const register: Register = on => {
     return next(e)
   })
 
+  // A Claude session that ends stops driving its omp sessions.
+  on('session.end', async ($, e, next) => {
+    try {
+      for (const entry of await live($)) if (entry.isMine) await release($, entry.session)
+    } catch {
+      // nothing to release
+    }
+    return next(e)
+  })
+
   on('command.run', { command: 'omp-claude-agent' }, async ($, e) => ({ text: await installCommand($, e.args) })).catch(() => ({ text: 'omp-claude-agent: the command failed' }))
 
   on('tool.run', { tool: 'mcp__omp-claude-agent__open' }, ($, e) => answer($, 'open', e)).catch(() => ({ deny: 'omp-claude-agent failed to answer' }))
   on('tool.run', { tool: 'mcp__omp-claude-agent__send' }, ($, e) => answer($, 'send', e)).catch(() => ({ deny: 'omp-claude-agent failed to answer' }))
   on('tool.run', { tool: 'mcp__omp-claude-agent__attach' }, ($, e) => answer($, 'attach', e)).catch(() => ({ deny: 'omp-claude-agent failed to answer' }))
+  on('tool.run', { tool: 'mcp__omp-claude-agent__detach' }, ($, e) => answer($, 'detach', e)).catch(() => ({ deny: 'omp-claude-agent failed to answer' }))
   on('tool.run', { tool: 'mcp__omp-claude-agent__state' }, ($, e) => answer($, 'state', e)).catch(() => ({ deny: 'omp-claude-agent failed to answer' }))
   on('tool.run', { tool: 'mcp__omp-claude-agent__list' }, ($, e) => answer($, 'list', e)).catch(() => ({ deny: 'omp-claude-agent failed to answer' }))
   on('tool.run', { tool: 'mcp__omp-claude-agent__abort' }, ($, e) => answer($, 'abort', e)).catch(() => ({ deny: 'omp-claude-agent failed to answer' }))

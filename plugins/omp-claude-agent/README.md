@@ -6,9 +6,11 @@ One folder, both halves:
 
 | Part | For | What it is |
 |------|-----|------------|
-| `.claude-plugin/plugin.json`, `hooks/` | Claude Code | Hooks module: the `mcp__omp-claude-agent__*` tools (`open`, `attach`, `send`, `list`, `state`, `abort`, `close`), the wake-up watcher, and `/omp-claude-agent [status\|install\|uninstall]` |
+| `.claude-plugin/plugin.json`, `hooks/` | Claude Code | Hooks module: the `mcp__omp-claude-agent__*` tools (`open`, `attach`, `send`, `list`, `state`, `detach`, `abort`, `close`), the wake-up watcher, and `/omp-claude-agent [status\|install\|uninstall]` |
 | `skills/omp-sessions/` | Claude Code | When and how to use the tools |
 | `package.json` (`omp.extensions`), `extension/` | omp | Extension that serves each omp process over HTTP on `~/.cache/omp-claude-agent/<name>/sock`; one copy runs per process even when loaded twice |
+
+While a Claude session drives an omp session, the extension appends a "Driven by Claude Code" section to omp's system prompt each turn: omp reports in its replies and leaves Plannotator (the user's channel, which Claude keeps) alone. omp used by hand never gets it. Driving starts with `open`, `attach` or `send`, and ends with `detach`, `close`, another Claude session taking over, or the Claude session ending.
 
 Requires `tern` and `omp` on `PATH`.
 

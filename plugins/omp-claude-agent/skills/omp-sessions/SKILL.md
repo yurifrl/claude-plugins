@@ -14,16 +14,18 @@ Use the omp-claude-agent tools, never a hand-launched `omp` or `tern send`:
 | `mcp__omp-claude-agent__send` | Prompt it and get the final reply; `mode` `steer` / `follow_up` while a turn runs |
 | `mcp__omp-claude-agent__list` | Reachable sessions, their owner (`me`, `other`, `none`), and whether the omp extension is installed |
 | `mcp__omp-claude-agent__state` | Session id and file, model, idle or waiting on the user, last reply |
+| `mcp__omp-claude-agent__detach` | Stop driving it but leave it running, for the user to take back |
 | `mcp__omp-claude-agent__abort` | Stop the running turn |
 | `mcp__omp-claude-agent__close` | Shut omp down (and close its pane, when `open` made it) |
 
-`list`, `state`, `abort` and `close` sit behind ToolSearch.
+`list`, `state`, `detach`, `abort` and `close` sit behind ToolSearch.
 
 ## How it behaves
 
 - **Placement.** `open` splits the pane Claude runs in, omp on the right. Leave `place` unset unless the user asks for something else: `down` for a split below, `tab` for a new tab.
 - **The pane is the normal interactive omp.** The user can type in it, and tool approvals and `ask` questions appear there for the user to answer. Do not answer them for the user.
 - **Ownership.** Each omp session sends its wake-ups to one Claude session: whichever last opened, attached to or sent to it. `attach` and `send` take it over from another Claude session.
+- **Driven prompt.** While this Claude session owns an omp session, omp's system prompt carries a "Driven by Claude Code" section: it reports everything in its replies and does not use Plannotator or reach the user directly. You are its link to the user: relay what they need, through the Plannotator Inbox where that is the channel. The section goes when the session is detached, closed, taken over, or this Claude session ends.
 - **Wake-ups.** A prompt arrives here by itself whenever a turn finishes in a session this Claude session owns and no blocking `send` is reporting it: a turn the user started in the pane, a `send` with `wait: false`, or a `send` whose wait ran out. Never poll, sleep or re-send to check on a turn.
 - `send` waits 300 s by default. A timeout is not a failure; the reply comes later as a wake-up.
 - Messages are delivered verbatim; slash commands in the text are not expanded.
