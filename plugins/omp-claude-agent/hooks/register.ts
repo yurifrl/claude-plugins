@@ -175,6 +175,27 @@ function watch($: any, s: Session, since: number) {
   })()
 }
 
+/**
+ * Where omp opens: a split to the right, always, unless the person's own recent
+ * words ask for a tab or a split below. A model's own layout preference (say,
+ * tabs for several workers) does not count.
+ */
+async function placement($: any, asked: unknown): Promise<'right' | 'down' | 'tab'> {
+  if (asked !== 'down' && asked !== 'tab') return 'right'
+  const words = asked === 'tab' ? /\b(tabs?|abas?)\b/i : /\b(down|below|bottom|under|vertical|baixo|embaixo)\b/i
+  try {
+    const recent = await $.session.messages({ last: 12 })
+    if ('deny' in recent) return 'right'
+    const said = recent
+      .filter((m: any) => m.role === 'user' && typeof m.text === 'string' && !m.text.startsWith('<'))
+      .slice(-3)
+      .some((m: any) => words.test(m.text))
+    return said ? asked : 'right'
+  } catch {
+    return 'right'
+  }
+}
+
 async function open($: any, e: any) {
   const name: string = e.name ?? `omp-${String(await $.clock.now()).slice(-6)}`
   if (!/^[A-Za-z0-9._-]{1,40}$/.test(name)) throw new Error('name may hold up to 40 letters, digits, ".", "_" and "-"')
@@ -202,7 +223,7 @@ async function open($: any, e: any) {
   // A split beside Claude's own pane unless the caller asks for a tab; with no
   // pane of its own to name, beside the focused block.
   const pane = (await $.env.get('TERN_PANE')) ?? '@focused'
-  const place: string = e.place ?? 'right'
+  const place = await placement($, e.place)
   const argv =
     place === 'tab'
       ? ['tern', 'new', 'tab', '--cwd', cwd, '--json', '--', ...launch]
@@ -228,7 +249,10 @@ async function open($: any, e: any) {
   }
   const state = await call($, s, 'GET', '/state')
   watch($, s, state.seq)
-  return { name, block, cwd, sessionId: state.sessionId, model: state.model }
+  return {
+    name, block, cwd, sessionId: state.sessionId, model: state.model, place,
+    ...(e.place && e.place !== place ? { note: `opened as a right split: "${e.place}" needs the user to ask for it` } : {}),
+  }
 }
 
 async function send($: any, e: any) {
@@ -349,7 +373,7 @@ const tools: Record<string, { description: string; inputSchema: Record<string, u
       properties: {
         name: { type: 'string', description: 'Session name (letters, digits, . _ -). Default: omp-<digits>.' },
         cwd: { type: 'string', description: "Directory omp works in. Default: this session's." },
-        place: { type: 'string', enum: ['right', 'down', 'tab'], description: 'Where the pane goes. Default "right": a split beside this pane. Pass "down" or "tab" only when the user asks for it.' },
+        place: { type: 'string', enum: ['right', 'down', 'tab'], description: 'Leave unset: omp always opens as a split to the right of this pane. "down" or "tab" is honored only when the user asked for it in their own recent message; never pass it for your own layout preference, such as several sessions at once.' },
         omp_args: { type: 'array', items: { type: 'string' }, description: 'Extra omp flags, e.g. ["--model","opus"].' },
       },
     },

@@ -22,7 +22,7 @@ Use the omp-claude-agent tools, never a hand-launched `omp` or `tern send`:
 
 ## How it behaves
 
-- **Placement.** `open` splits the pane Claude runs in, omp on the right. Leave `place` unset unless the user asks for something else: `down` for a split below, `tab` for a new tab.
+- **Placement.** `open` always splits the pane Claude runs in, omp on the right, also when opening several sessions. Leave `place` unset. `down` or `tab` is honored only when the user's own recent message asks for it; otherwise the plugin opens a right split anyway and says so in a `note`.
 - **The pane is the normal interactive omp.** The user can type in it, and tool approvals and `ask` questions appear there for the user to answer. Do not answer them for the user.
 - **Ownership.** Each omp session sends its wake-ups to one Claude session: whichever last opened, attached to or sent to it. `attach` and `send` take it over from another Claude session.
 - **Driven prompt.** While this Claude session owns an omp session, omp's system prompt carries a "Driven by Claude Code" section: it reports everything in its replies, does not use Plannotator or reach the user directly, and tracks its work in tk where the directory has a tk workspace. To hand omp work on the record, create the tk task and send omp its id. You are its link to the user: relay what they need, through the Plannotator Inbox where that is the channel. The section goes when the session is detached, closed, taken over, or this Claude session ends.
