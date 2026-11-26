@@ -1,6 +1,6 @@
 {
   "name": "omp-claude-agent",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "description": "omp side of omp-claude-agent: lets Claude Code drive this omp session over a unix socket",
   "omp": {

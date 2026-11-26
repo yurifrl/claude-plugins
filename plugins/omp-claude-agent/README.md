@@ -12,7 +12,9 @@ One folder, both halves:
 
 While a Claude session drives an omp session, the extension appends a "Driven by Claude Code" section to omp's system prompt each turn: omp reports in its replies, leaves Plannotator (the user's channel, which Claude keeps) alone, and tracks its work in tk where the directory has a tk workspace (without tk's `ask`/`say`/`annotate`, which reach the user). omp used by hand never gets it. Driving starts with `open`, `attach` or `send`, and ends with `detach`, `close`, another Claude session taking over, or the Claude session ending.
 
-Requires `tern` and `omp` on `PATH`.
+Where sessions open: one session is a Tern split right of Claude's pane; with more than one, every session gets its own tab in the herdr session `claude-<Claude session id>` (shown in a Tern split), and opening a second one moves the first there, resuming its conversation. A herdr tab is labelled with the session's tk task id (`task`), else its name. The skill (`skills/omp-sessions`) holds the rules Claude follows: it orchestrates and owns quality and timeliness, closes a session once its task is done, and probes running sessions about every 10 minutes.
+
+Requires `tern`, `omp` and (for more than one session) `herdr` on `PATH`.
 
 ## Install
 

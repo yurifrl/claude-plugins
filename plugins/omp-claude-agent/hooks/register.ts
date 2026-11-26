@@ -153,7 +153,7 @@ function watch($: any, s: Session, since: number) {
         const { first } = await call($, s, 'POST', `/ack?seq=${seen}`)
         if (!first) continue
         void $.prompt.submit({
-          text: `omp session "${s.name}" finished a turn. Its reply:\n\n${waited.text || '(no text)'}`,
+          text: `omp session "${s.name}" finished a turn. Its reply:\n\n${waited.text || '(no text)'}\n\nIf its task is done, close the session.`,
         })
       }
     } catch {
@@ -196,34 +196,83 @@ async function placement($: any, asked: unknown): Promise<'right' | 'down' | 'ta
   }
 }
 
-async function open($: any, e: any) {
-  const name: string = e.name ?? `omp-${String(await $.clock.now()).slice(-6)}`
-  if (!/^[A-Za-z0-9._-]{1,40}$/.test(name)) throw new Error('name may hold up to 40 letters, digits, ".", "_" and "-"')
-  const s = await session($, name)
-  try {
-    await call($, s, 'GET', '/state')
-    throw new Error(`omp session "${name}" is already running`)
-  } catch (error: any) {
-    if (String(error?.message).includes('already running')) throw error
-  }
-  const cwd: string = e.cwd ?? (await $.session.cwd())
-  await $.process.run(['mkdir', '-p', s.dir])
-  await $.process.run(['rm', '-f', s.sock])
-  await claim($, s)
+// ---- hosts ---------------------------------------------------------------
+//
+// Rules (plain, enforced here):
+// 1. One omp session for this Claude session: a Tern split right of Claude's pane.
+// 2. More than one: every one lives in herdr, one tab each. Opening a second
+//    session moves the first (Tern) one into herdr, resuming its conversation.
+// 3. The herdr session is named claude-<this Claude session id> and is shown in
+//    a Tern split right of Claude's pane.
+// 4. A herdr tab is labelled with the session's tk task id, else its name.
 
+type Herdr = { session: string; tab: string; pane: string }
+
+function herdrName(claudeId: string) {
+  return `claude-${claudeId}`
+}
+
+/** A herdr agent name: [a-z][a-z0-9_-]{0,31}. */
+function agentName(name: string) {
+  const clean = name.toLowerCase().replace(/[^a-z0-9_-]/g, '-')
+  return (/^[a-z]/.test(clean) ? clean : `o-${clean}`).slice(0, 32)
+}
+
+async function herdrJson($: any, argv: string[], timeoutMs = 30_000) {
+  const ran = await $.process.run(['herdr', ...argv], { timeoutMs })
+  if (ran.exitCode !== 0) throw new Error(`herdr ${argv.slice(0, 4).join(' ')} failed: ${(ran.stderr || ran.stdout).slice(0, 400)}`)
+  return JSON.parse(ran.stdout)
+}
+
+/** The herdr session for this Claude session, started in a Tern split when it is not running. */
+async function herdrSession($: any): Promise<{ session: string; workspace: string }> {
+  const session = herdrName(await $.session.id())
+  const listed = await herdrJson($, ['session', 'list', '--json'])
+  const isRunning = (listed.sessions ?? []).some((x: any) => x.name === session && x.running)
+  if (!isRunning) {
+    const pane = (await $.env.get('TERN_PANE')) ?? '@focused'
+    const started = await $.process.run(['tern', 'split', pane, 'right', '--cwd', await $.session.cwd(), '--json', '--', 'herdr', '--session', session])
+    if (started.exitCode !== 0) throw new Error(`tern failed to show herdr: ${started.stderr || started.stdout}`)
+    const up = await $.process.run(
+      ['sh', '-c', 'for i in $(seq 100); do herdr --session "$1" workspace list >/dev/null 2>&1 && exit 0; sleep 0.3; done; exit 1', 'sh', session],
+      { timeoutMs: 40_000 },
+    )
+    if (up.exitCode !== 0) throw new Error(`herdr session ${session} did not start`)
+  }
+  const workspaces = await herdrJson($, ['--session', session, 'workspace', 'list'])
+  const workspace = workspaces.result?.workspaces?.[0]?.workspace_id
+  if (!workspace) throw new Error(`herdr session ${session} has no workspace`)
+  return { session, workspace }
+}
+
+async function prepare($: any, s: Session, e: any) {
+  await $.process.run(['mkdir', '-p', s.dir])
+  await $.process.run(['rm', '-f', s.sock, `${s.dir}/block`, `${s.dir}/herdr`])
+  await claim($, s)
+  await $.fs.write(`${s.dir}/args.json`, JSON.stringify({ omp_args: e.omp_args ?? [], task: e.task ?? null }))
+}
+
+async function waitReady($: any, s: Session, where: string) {
+  const ready = await $.process.run(
+    ['sh', '-c', 'for i in $(seq 300); do [ -S "$1" ] && exit 0; sleep 0.3; done; exit 1', 'sh', s.sock],
+    { timeoutMs: READY_TIMEOUT_MS + 5_000 },
+  )
+  if (ready.exitCode !== 0) throw new Error(`omp did not become ready; read ${where}`)
+  return call($, s, 'GET', '/state')
+}
+
+async function launchTern($: any, s: Session, cwd: string, ompArgs: string[], asked: unknown) {
   // Tern builds one shell line from the launch words and quotes them its own
   // way, so hand it only plain words: a script that holds the real command.
   if (!/^[A-Za-z0-9_@%+=:,./-]+$/.test(s.dir)) throw new Error(`state folder has characters Tern cannot launch from: ${s.dir}`)
-  const command = ['exec', 'omp', '-e', `${$.plugin.root}/extension/omp-claude-agent.ts`, ...((e.omp_args as string[] | undefined) ?? [])]
+  const command = ['exec', 'omp', '-e', `${$.plugin.root}/extension/omp-claude-agent.ts`, ...ompArgs]
   await $.fs.write(
     `${s.dir}/launch.sh`,
     `#!/bin/sh\nexport OMP_CLAUDE_AGENT_DIR=${shq(s.dir)}\n${command.map((word, index) => (index === 0 ? word : shq(word))).join(' ')}\n`,
   )
   const launch = ['sh', `${s.dir}/launch.sh`]
-  // A split beside Claude's own pane unless the caller asks for a tab; with no
-  // pane of its own to name, beside the focused block.
   const pane = (await $.env.get('TERN_PANE')) ?? '@focused'
-  const place = await placement($, e.place)
+  const place = await placement($, asked)
   const argv =
     place === 'tab'
       ? ['tern', 'new', 'tab', '--cwd', cwd, '--json', '--', ...launch]
@@ -236,22 +285,116 @@ async function open($: any, e: any) {
   } catch {
     block = undefined
   }
-
   // close shuts this pane: the one `open` made, never one omp found itself in.
   if (block !== undefined) await $.fs.write(`${s.dir}/block`, String(block))
+  const state = await waitReady($, s, `its pane with: tern capture ${block} --surfaces`)
+  return { host: 'tern', place, block, state }
+}
 
-  const ready = await $.process.run(
-    ['sh', '-c', 'for i in $(seq 300); do [ -S "$1" ] && exit 0; sleep 0.3; done; exit 1', 'sh', s.sock],
-    { timeoutMs: READY_TIMEOUT_MS + 5_000 },
+async function launchHerdr($: any, s: Session, cwd: string, ompArgs: string[], label: string) {
+  const { session, workspace } = await herdrSession($)
+  const created = await herdrJson($, [
+    '--session', session, 'tab', 'create', '--workspace', workspace, '--cwd', cwd, '--label', label,
+    '--env', `OMP_CLAUDE_AGENT_DIR=${s.dir}`, '--no-focus',
+  ])
+  const tab: string = created.result.tab.tab_id
+  const pane: string = created.result.root_pane.pane_id
+  const where: Herdr = { session, tab, pane }
+  await $.fs.write(`${s.dir}/herdr`, JSON.stringify(where))
+  // A tab's shell drops what is typed before its prompt is up (the first tab
+  // of a fresh herdr server is slow): wait for the prompt, and start again
+  // once if omp still never came up.
+  await $.process.run(
+    ['herdr', '--session', session, 'pane', 'wait-output', pane, '--regex', '\\S', '--timeout', '20000'],
+    { timeoutMs: 25_000 },
   )
-  if (ready.exitCode !== 0) {
-    throw new Error(`omp did not become ready; read its pane with: tern capture ${block} --surfaces`)
+  await $.clock.sleep(500)
+  const start = () =>
+    herdrJson(
+      $,
+      ['--session', session, 'agent', 'start', agentName(s.name), '--kind', 'omp', '--pane', pane, '--timeout', '60000',
+        '--', '-e', `${$.plugin.root}/extension/omp-claude-agent.ts`, ...ompArgs],
+      70_000,
+    )
+  try {
+    await start()
+  } catch {
+    if (!(await $.fs.exists(s.sock))) await start()
   }
+  const state = await waitReady($, s, `the herdr tab with: herdr --session ${session} pane read ${pane} --source recent-unwrapped`)
+  return { host: 'herdr', herdr: where, state }
+}
+
+/** Moves a session of this Claude session from Tern into a herdr tab, keeping its conversation. */
+async function moveToHerdr($: any, s: Session) {
   const state = await call($, s, 'GET', '/state')
-  watch($, s, state.seq)
+  let saved: any = {}
+  try {
+    saved = JSON.parse(await $.fs.read(`${s.dir}/args.json`))
+  } catch {
+    saved = {}
+  }
+  let block: string | undefined
+  try {
+    block = (await $.fs.read(`${s.dir}/block`)).trim() || undefined
+  } catch {
+    block = undefined
+  }
+  closing.add(s.name)
+  await call($, s, 'POST', '/shutdown')
+  await $.process.run(
+    ['sh', '-c', 'for i in $(seq 50); do kill -0 "$1" 2>/dev/null || exit 0; sleep 0.1; done; kill "$1"', 'sh', String(state.pid)],
+    { timeoutMs: 15_000 },
+  )
+  if (block) await $.process.run(['tern', 'close', block])
+  // omp saves a session file only once it has a message: an empty session
+  // starts fresh in herdr rather than failing to resume.
+  const base = (saved.omp_args ?? []).filter((x: string, i: number, all: string[]) => x !== '--resume' && all[i - 1] !== '--resume')
+  const canResume = Boolean(state.sessionFile) && (await $.fs.exists(state.sessionFile))
+  const args = canResume ? [...base, '--resume', state.sessionId] : base
+  await prepare($, s, { omp_args: saved.omp_args ?? [], task: saved.task ?? undefined })
+  const moved = await launchHerdr($, s, state.cwd, args, saved.task ?? s.name)
+  watch($, s, moved.state.seq)
+  return s.name
+}
+
+/** This Claude session's live omp sessions, and which of them sit in Tern. */
+async function mine($: any, except?: string) {
+  const owned = (await live($)).filter(entry => entry.isMine && entry.session.name !== except)
+  const inTern = []
+  for (const entry of owned) if (!(await $.fs.exists(`${entry.session.dir}/herdr`))) inTern.push(entry)
+  return { owned, inTern }
+}
+
+async function open($: any, e: any) {
+  const name: string = e.name ?? `omp-${String(await $.clock.now()).slice(-6)}`
+  if (!/^[A-Za-z0-9._-]{1,40}$/.test(name)) throw new Error('name may hold up to 40 letters, digits, ".", "_" and "-"')
+  const s = await session($, name)
+  try {
+    await call($, s, 'GET', '/state')
+    throw new Error(`omp session "${name}" is already running`)
+  } catch (error: any) {
+    if (String(error?.message).includes('already running')) throw error
+  }
+  const cwd: string = e.cwd ?? (await $.session.cwd())
+  const ompArgs: string[] = e.omp_args ?? []
+
+  // Rule 2: a second session puts them all in herdr.
+  const { owned, inTern } = await mine($, name)
+  const useHerdr = e.several === true || owned.length > 0
+  const moved = []
+  if (useHerdr) for (const entry of inTern) moved.push(await moveToHerdr($, entry.session))
+
+  await prepare($, s, e)
+  const opened = useHerdr
+    ? await launchHerdr($, s, cwd, ompArgs, e.task ?? name)
+    : await launchTern($, s, cwd, ompArgs, e.place)
+  watch($, s, opened.state.seq)
+  const { state, ...where } = opened as any
   return {
-    name, block, cwd, sessionId: state.sessionId, model: state.model, place,
-    ...(e.place && e.place !== place ? { note: `opened as a right split: "${e.place}" needs the user to ask for it` } : {}),
+    name, cwd, sessionId: state.sessionId, model: state.model, ...where,
+    ...(moved.length ? { movedToHerdr: moved } : {}),
+    ...(!useHerdr && e.place && e.place !== (opened as any).place ? { note: `opened as a right split: "${e.place}" needs the user to ask for it` } : {}),
   }
 }
 
@@ -327,6 +470,12 @@ async function close($: any, e: any) {
     { timeoutMs: 15_000 },
   )
   if (block) await $.process.run(['tern', 'close', block])
+  try {
+    const where: Herdr = JSON.parse(await $.fs.read(`${s.dir}/herdr`))
+    await $.process.run(['herdr', '--session', where.session, 'tab', 'close', where.tab])
+  } catch {
+    // not in herdr
+  }
   return `closed omp session "${s.name}"`
 }
 
@@ -367,7 +516,7 @@ const NAME = { type: 'string', description: 'Session name. Optional when exactly
 const tools: Record<string, { description: string; inputSchema: Record<string, unknown> }> = {
   open: {
     description:
-      'Open an omp (oh-my-pi) agent session: the real omp TUI in a Tern pane the user can watch and type in. Use whenever the user asks to open, start or spawn an omp session. Returns once omp is ready. From then on you are prompted automatically whenever a turn in that session finishes without a blocking send waiting for it.',
+      'Open an omp (oh-my-pi) agent session: the real omp TUI, in a Tern split right of this pane when it is your only one, else in its own tab of your herdr session (opening a second one moves the first into herdr). Use whenever the user asks to open, start or spawn an omp session. Returns once omp is ready. From then on you are prompted automatically whenever a turn in that session finishes without a blocking send waiting for it.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -375,6 +524,8 @@ const tools: Record<string, { description: string; inputSchema: Record<string, u
         cwd: { type: 'string', description: "Directory omp works in. Default: this session's." },
         place: { type: 'string', enum: ['right', 'down', 'tab'], description: 'Leave unset: omp always opens as a split to the right of this pane. "down" or "tab" is honored only when the user asked for it in their own recent message; never pass it for your own layout preference, such as several sessions at once.' },
         omp_args: { type: 'array', items: { type: 'string' }, description: 'Extra omp flags, e.g. ["--model","opus"].' },
+        task: { type: 'string', description: 'tk task id this session works on. Becomes its herdr tab label. Pass it whenever the work has a task.' },
+        several: { type: 'boolean', description: 'Set true when you are about to open more than one omp session: they all go to herdr from the first one.' },
       },
     },
   },
@@ -416,7 +567,7 @@ const tools: Record<string, { description: string; inputSchema: Record<string, u
     inputSchema: { type: 'object', properties: { name: NAME } },
   },
   close: {
-    description: 'Shut an omp session down and close its Tern pane. Only for sessions opened for a finished side task, or when the user asks.',
+    description: 'Shut an omp session down and close its Tern pane or herdr tab. Call it as soon as the session task is done: never leave a finished omp session running. On an omp the user started, only when they ask.',
     inputSchema: { type: 'object', properties: { name: NAME } },
   },
 }

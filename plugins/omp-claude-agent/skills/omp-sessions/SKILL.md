@@ -20,16 +20,40 @@ Use the omp-claude-agent tools, never a hand-launched `omp` or `tern send`:
 
 `list`, `state`, `detach`, `abort` and `close` sit behind ToolSearch.
 
+## Rules
+
+0. **You are the orchestrator.** You own the quality and the timeliness of everything your omp sessions do. Give each a clear brief with its check of done, review what it reports before you accept it (read the diff, run the check), send it back when it falls short, and keep every session moving: probe it (rule 7), unblock it, or close it.
+1. **One omp session:** a Tern split right of your pane. Call `open` with no `place`.
+2. **More than one omp session:** all of them go in herdr, one tab each. Call `open` with `several: true` for every one when you know up front; otherwise the second `open` moves the first session into herdr by itself (same conversation, resumed).
+3. **herdr session:** named `claude-<your Claude session id>`, shown in a Tern split right of your pane. `open` creates it; never create it by hand.
+4. **herdr tab label:** the tk task id. Pass `task: "<id>"` to `open`. No task (tests only): the session name is used.
+5. **Task done, session over:** `close` it. That shuts omp down and closes its pane or herdr tab. Never leave a finished omp session running.
+6. `tab` or `down` placement only when the user asks for it.
+7. **Probe running sessions.** While any omp session of yours is working, check on them every 10 minutes or so: `list`, then `state` for each one that is not idle, or read its herdr tab. Look for one waiting on the user (`waitingOnUser`), one idle without having reported, or one that ended. Act on what you find: answer or forward its question, nudge it with `send`, or `close` it. Schedule the next check (a wake-up or a loop) rather than sleeping, and stop once none are running.
+
+## Commands
+
+| Goal | Call |
+|------|------|
+| One worker | `open({ name, cwd, task })` |
+| N workers for one job | `open({ name, cwd, task, several: true })` per worker |
+| Give work | `send({ name, message: "Work tk task <id>: <brief>" })`, or `wait: false` for long work |
+| Task done | `close({ name })` |
+| Hand a session back to the user | `detach({ name })` |
+| Take over an omp the user started | `attach({ name })` from `list` |
+| Probe | `list`, then `state({ name })` for each busy one |
+
+In herdr, inspect a tab with `herdr --session claude-<id> pane read <pane> --source recent-unwrapped --lines 80`; `open` returns the `herdr` session, tab and pane ids.
+
 ## How it behaves
 
-- **Placement.** `open` always splits the pane Claude runs in, omp on the right, also when opening several sessions. Leave `place` unset. `down` or `tab` is honored only when the user's own recent message asks for it; otherwise the plugin opens a right split anyway and says so in a `note`.
 - **The pane is the normal interactive omp.** The user can type in it, and tool approvals and `ask` questions appear there for the user to answer. Do not answer them for the user.
 - **Ownership.** Each omp session sends its wake-ups to one Claude session: whichever last opened, attached to or sent to it. `attach` and `send` take it over from another Claude session.
 - **Driven prompt.** While this Claude session owns an omp session, omp's system prompt carries a "Driven by Claude Code" section: it reports everything in its replies, does not use Plannotator or reach the user directly, and tracks its work in tk where the directory has a tk workspace. To hand omp work on the record, create the tk task and send omp its id. You are its link to the user: relay what they need, through the Plannotator Inbox where that is the channel. The section goes when the session is detached, closed, taken over, or this Claude session ends.
 - **Wake-ups.** A prompt arrives here by itself whenever a turn finishes in a session this Claude session owns and no blocking `send` is reporting it: a turn the user started in the pane, a `send` with `wait: false`, or a `send` whose wait ran out. Never poll, sleep or re-send to check on a turn.
 - `send` waits 300 s by default. A timeout is not a failure; the reply comes later as a wake-up.
 - Messages are delivered verbatim; slash commands in the text are not expanded.
-- Leave a session open when the user asked to see it. Close only sessions opened for a finished side task. `close` on an attached session stops the user's omp: only on request.
+- Leave a session open when the user asked to see it. Close every session whose task is done (rule 5). `close` on an omp the user started stops it: only on request.
 
 ## Reaching omp the user started
 
